@@ -61,52 +61,31 @@ This project was created to explore and demonstrate Salesforce integration patte
 
 ## Architecture
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    Salesforce Org                           │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │  Connected App (JWT OAuth 2.0)                       │  │
-│  │  - Consumer Key / Secret                             │  │
-│  │  - Digital Certificate                               │  │
-│  │  - Pre-authorized User: custodian.bot@example.dev   │  │
-│  └──────────────────────────────────────────────────────┘  │
-│                          │                                  │
-│  ┌───────────────────────┼──────────────────────────────┐  │
-│  │  Change Data Capture  │  REST API       Lightning    │  │
-│  │  - CaseChangeEvent    │  - Case CRUD    - LWC        │  │
-│  │                       │  - SOQL         - Apex       │  │
-│  └───────────────────────┼──────────────────────────────┘  │
-└────────────────────────────┼──────────────────────────────┘
-                             │
-                    ┌────────┴────────┐
-                    │   JWT Token     │
-                    │   Exchange      │
-                    └────────┬────────┘
-                             │
-┌────────────────────────────┼──────────────────────────────┐
-│           Spring Boot Application (Kotlin)                 │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  SalesforceAuthService                               │ │
-│  │  - Generates JWT with private key                    │ │
-│  │  - Exchanges JWT for access token                    │ │
-│  └──────────────────────────────────────────────────────┘ │
-│                          │                                 │
-│  ┌──────────────────────┴───────────────────────────────┐ │
-│  │  SalesforceCometDService                             │ │
-│  │  - Subscribes to /data/CaseChangeEvent              │ │
-│  │  - Logs all Case changes (CREATE/UPDATE/DELETE)     │ │
-│  └──────────────────────────────────────────────────────┘ │
-│                                                            │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  SalesforceRestService                               │ │
-│  │  - Close Case API call                               │ │
-│  └──────────────────────────────────────────────────────┘ │
-│                                                            │
-│  ┌──────────────────────────────────────────────────────┐ │
-│  │  CaseController (REST Endpoints)                     │ │
-│  │  - POST /cases/{caseId}/close                        │ │
-│  └──────────────────────────────────────────────────────┘ │
-└────────────────────────────────────────────────────────────┘
+```mermaid
+flowchart TB
+    subgraph SF["Salesforce Org"]
+        CA["Connected App<br/>(JWT OAuth 2.0)<br/>• Consumer Key<br/>• Digital Certificate<br/>• Pre-authorized User:<br/>custodian.bot@example.dev"]
+        CDC["Change Data Capture<br/>• CaseChangeEvent"]
+        REST["REST API<br/>• Case CRUD<br/>• SOQL"]
+        LWC["Lightning Web Component<br/>• caseEchoButton<br/>• Apex Classes"]
+    end
+
+    JWT["JWT Token Exchange"]
+
+    subgraph SB["Spring Boot Application (Kotlin)"]
+        AUTH["SalesforceAuthService<br/>• Generates JWT with private key<br/>• Exchanges JWT for access token"]
+        COMET["SalesforceCometDService<br/>• Subscribes to /data/CaseChangeEvent<br/>• Logs all Case changes<br/>(CREATE/UPDATE/DELETE)"]
+        SFREST["SalesforceRestService<br/>• Close Case API call"]
+        CTRL["CaseController<br/>(REST Endpoints)<br/>• POST /cases/{caseId}/close"]
+    end
+
+    CA -->|Authenticate| JWT
+    JWT -->|Access Token| AUTH
+    AUTH -->|Token| COMET
+    AUTH -->|Token| SFREST
+    CDC -->|Stream Events| COMET
+    SFREST -->|API Calls| REST
+    CTRL -->|Uses| SFREST
 ```
 
 ## Salesforce Setup - What I Did
@@ -228,7 +207,7 @@ After the Connected App was created, I needed the Consumer Key (Client ID).
   - This is the Client ID used in JWT authentication
 - **Consumer Secret**: (not needed for JWT flow, but noted for reference)
 
-I copied the Consumer Key and saved it in `application.properties` as `salesforce.oauth.client-id`.
+I copied the Consumer Key and saved it in `.env.local` as `SALESFORCE_CONSUMER-KEY`.
 
 ### Step 6: Pre-Authorized the Bot User in Connected App
 
@@ -356,7 +335,7 @@ curl -X POST https://login.salesforce.com/services/oauth2/token \
 **If I got an error**, I checked:
 - Certificate uploaded correctly in Connected App
 - Bot user pre-authorized in Connected App
-- Consumer Key correct in application.properties
+- Consumer Key correct in .env.local
 - JWT claims (issuer, subject, audience) correct
 
 ### Step 11: Created Test Cases
@@ -415,12 +394,12 @@ Handles OAuth 2.0 JWT Bearer Flow authentication.
 - **Audience (aud)**: https://login.salesforce.com (or test.salesforce.com for sandboxes)
 - **Expiration**: 3 minutes (short-lived for security)
 
-**Configuration (application.properties):**
-```properties
-salesforce.oauth.client-id=3MVG97L7PWbPq6Uz_RALb6O1RF5fn1wDxiF_15HtPXA0IArecr3xj2mw7KyKwGBnEcdq35h2pbazb7K0xvAQC
-salesforce.oauth.username=custodian.bot@example.dev
-salesforce.oauth.token-url=https://login.salesforce.com/services/oauth2/token
-salesforce.oauth.private-key-path=classpath:sf-jwt-private.key
+**Configuration (.env.local):**
+```env
+SALESFORCE_CONSUMER-KEY=3MVG97L7PWbPq6Uz_RALb6O1RF5fn1wDxiF_15HtPXA0IArecr3xj2mw7KyKwGBnEcdq35h2pbazb7K0xvAQC
+SALESFORCE_USERNAME=custodian.bot@example.dev
+SALESFORCE_LOGIN-URL=https://login.salesforce.com
+SALESFORCE_API-VERSION=59.0
 ```
 
 #### SalesforceCometDService.kt
@@ -495,10 +474,11 @@ curl -X POST http://localhost:8080/cases/5001234567890/close
    ls src/main/resources/sf-jwt-*.crt
    ```
 
-2. **Configure application.properties:**
-   - Set `salesforce.oauth.client-id` to your Consumer Key
-   - Set `salesforce.oauth.username` to your bot user
-   - Verify `salesforce.instance-url` matches your org
+2. **Configure .env.local:**
+   - Set `SALESFORCE_CONSUMER-KEY` to your Consumer Key
+   - Set `SALESFORCE_USERNAME` to your bot user
+   - Set `SALESFORCE_LOGIN-URL` to https://login.salesforce.com
+   - Set `SALESFORCE_API-VERSION` to 59.0
 
 3. **Build and run:**
    ```bash
@@ -525,18 +505,20 @@ A custom button on Case record pages that:
 
 **Component Architecture:**
 
-```
-caseEchoButton (LWC)
-    ↓
-    Calls Apex method imperatively
-    ↓
-ChuckNorrisService.getRandomJoke() (Apex)
-    ↓
-    HTTP GET → https://api.chucknorris.io/jokes/random
-    ↓
-    Returns JokeResponse
-    ↓
-Toast: "Case #00001234 - Chuck Norris can divide by zero."
+```mermaid
+sequenceDiagram
+    participant User
+    participant LWC as caseEchoButton (LWC)
+    participant Apex as ChuckNorrisService (Apex)
+    participant API as Chuck Norris API
+
+    User->>LWC: Click "Click Me" button
+    LWC->>LWC: Get Case Number from record
+    LWC->>Apex: getRandomJoke()
+    Apex->>API: HTTP GET /jokes/random
+    API-->>Apex: JSON Response (joke)
+    Apex-->>LWC: JokeResponse
+    LWC->>User: Show Toast:<br/>"Case #00001234 - Chuck Norris can divide by zero."
 ```
 
 **Files:**
@@ -583,6 +565,8 @@ sf project deploy start --source-dir force-app
 
 ### Setup
 
+**Configuration Note:** This project uses environment variables defined in `.env.local` for Salesforce configuration. The application automatically loads these variables at startup. Never commit `.env.local` to version control.
+
 1. **Clone this repository** (or create from scratch following this guide)
 
 2. **Generate JWT keys** (if not already done):
@@ -595,14 +579,21 @@ sf project deploy start --source-dir force-app
 
 3. **Configure Connected App** in Salesforce (see "Salesforce Setup" section)
 
-4. **Update application.properties**:
-   ```properties
-   salesforce.oauth.client-id=YOUR_CONSUMER_KEY
-   salesforce.oauth.username=YOUR_BOT_USER_USERNAME
-   salesforce.oauth.token-url=https://login.salesforce.com/services/oauth2/token
-   salesforce.instance-url=https://yourinstance.my.salesforce.com
-   salesforce.api-version=59.0
+4. **Create .env.local file** in project root:
+   ```env
+   SALESFORCE_CONSUMER-KEY=YOUR_CONSUMER_KEY
+   SALESFORCE_USERNAME=YOUR_BOT_USER_USERNAME
+   SALESFORCE_LOGIN-URL=https://login.salesforce.com
+   SALESFORCE_API-VERSION=59.0
    ```
+
+   **Variable Descriptions:**
+   - `SALESFORCE_CONSUMER-KEY`: Consumer Key from your Connected App (from Step 5 of Salesforce Setup)
+   - `SALESFORCE_USERNAME`: Your bot user's username (e.g., custodian.bot@example.dev)
+   - `SALESFORCE_LOGIN-URL`: Authentication endpoint (use https://test.salesforce.com for sandboxes)
+   - `SALESFORCE_API-VERSION`: Salesforce API version to use
+
+   **Important:** Add `.env.local` to your `.gitignore` to prevent committing sensitive credentials!
 
 5. **Build the application**:
    ```bash
@@ -701,7 +692,7 @@ salesforce-demo/
 │   │   │   ├── CloseCaseRequest.kt               # DTOs
 │   │   │   └── CloseCaseResponse.kt
 │   │   └── resources/
-│   │       ├── application.properties            # Configuration
+│   │       ├── application.properties            # Spring Boot config
 │   │       ├── sf-jwt-private.key                # Private key (keep secret!)
 │   │       └── sf-jwt-public.crt                 # Public certificate
 │   └── test/
@@ -721,6 +712,7 @@ salesforce-demo/
 │   ├── sfdx-project.json                         # SFDX config
 │   ├── .forceignore                              # Deployment exclusions
 │   └── README.md                                 # LWC deployment guide
+├── .env.local                                    # Environment variables (Salesforce config)
 ├── pom.xml                                       # Maven dependencies
 ├── CLAUDE.md                                     # Project notes
 └── README.md                                     # This file
