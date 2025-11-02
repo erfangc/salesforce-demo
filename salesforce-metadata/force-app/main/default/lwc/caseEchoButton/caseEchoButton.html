@@ -1,0 +1,27 @@
+<template>
+    <lightning-card title="Case Echo Button" icon-name="standard:case">
+        <div class="slds-p-around_medium">
+            <lightning-button
+                variant="brand"
+                label="Click Me"
+                title="Click to see Case Number and Chuck Norris Fact"
+                onclick={handleClick}
+                disabled={isLoading}
+                class="slds-m-left_x-small">
+            </lightning-button>
+
+            <!-- Loading spinner -->
+            <template lwc:if={isLoading}>
+                <div class="slds-m-top_small">
+                    <lightning-spinner
+                        alternative-text="Loading Chuck Norris fact..."
+                        size="small">
+                    </lightning-spinner>
+                    <p class="slds-text-align_center slds-m-top_small">
+                        Fetching Chuck Norris fact...
+                    </p>
+                </div>
+            </template>
+        </div>
+    </lightning-card>
+</template>

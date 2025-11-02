@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<RemoteSiteSetting xmlns="http://soap.sforce.com/2006/04/metadata">
+    <fullName>ChuckNorrisAPI</fullName>
+    <description>Chuck Norris Jokes API - Required for external API callouts</description>
+    <url>https://api.chucknorris.io</url>
+    <isActive>true</isActive>
+    <disableProtocolSecurity>false</disableProtocolSecurity>
+</RemoteSiteSetting>
