@@ -6,12 +6,12 @@ import org.springframework.boot.CommandLineRunner
 import org.springframework.stereotype.Component
 
 @Component
-class CdcListenerRunner(
+class CaseChangeEventListenerRunner(
     private val authService: SalesforceAuthService,
     private val cometDService: SalesforceCometDService
 ) : CommandLineRunner {
 
-    private val logger = LoggerFactory.getLogger(CdcListenerRunner::class.java)
+    private val logger = LoggerFactory.getLogger(CaseChangeEventListenerRunner::class.java)
 
     override fun run(vararg args: String?) {
         logger.info("Starting Salesforce CDC Listener...")
