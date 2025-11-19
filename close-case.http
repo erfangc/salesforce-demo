@@ -1,0 +1,8 @@
+###
+@caseId = 500g5000002aHMBAA2
+POST http://localhost:8080/cases/{{caseId}}/close
+Content-Type: application/json
+
+{
+  "reason": "Testing REST API"
+}
